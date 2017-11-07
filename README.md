@@ -2,7 +2,7 @@
 outputs a curl config file containing the direct download urls that you can use with curl -K 
 
 
-Usage : <input> <output>
+Usage : input output
   
 
 Input is a database query output file in the format ID MD5 ( query must be select id,md5 from ...)
