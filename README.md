@@ -1,6 +1,8 @@
 # libgenpw
 outputs a curl config file containing the direct download urls that you can use with curl -K 
 
+Uses curl and xmllint for html parsing
+
 
 Usage : input output
   
