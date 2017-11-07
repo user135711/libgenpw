@@ -1,0 +1,85 @@
+#!/bin/bash
+#
+#	given a database query output file in the format ID MD5, outputs a curl config file with the corresponding download urls
+#
+
+cutdbid ()
+{
+	dbidfile=$1.dbid.$$.txt
+	cut -d "|" -f 2 $1 > /tmp/$dbidfile
+}
+
+cutmd5 ()
+{
+	md5file=$1.md5.$$.txt
+	cut -d "|" -f 3 $1 > /tmp/$md5file
+}
+
+if [ $# -ne 2 ]
+then
+	echo "Usage : <input> <output>"
+	exit 1
+fi
+#	cut ID and MD5 in separate temp files
+cutdbid $1
+cutmd5 $1
+
+outputfile=$2	# curl config filename
+out=lgpagedl$$	# curl temp config file for html pages retrieval
+#	fake user-agent
+UA="Mozilla/5.0"
+#	libgen url format
+BURL="https://libgen.pw/download.php?id="
+TOKEN0="https://libgen.pw/noleech1.php?hidden="
+TOKEN1="&hidden0="
+TOKEN2="&hidden1="
+
+#	write curl temp config file for downloading html pages and put IDs in an array
+num=0
+for DBID in $(cat /tmp/$dbidfile)
+do
+	URL=$BURL$DBID
+	REF[$num]=$URL
+	echo "-A $UA" >> /tmp/$out
+	echo "-k" >> /tmp/$out
+	echo "-o $num.$$.html" >> /tmp/$out
+	echo "--url $URL" >> /tmp/$out
+	echo >> /tmp/$out
+	$((num++)) 2>/dev/null
+done
+
+#	start fetching html pages in /tmp
+cd /tmp/
+curl -K /tmp/$out
+
+#	put md5s in an array (md5 needed for building the download url)
+num=0
+for line in $(cat /tmp/$md5file)
+do
+	MD5[$num]=$line
+	$((num++)) 2>/dev/null
+done
+
+#	extract from the html pages needed info, build download url and write it to curl config file in previous working directory
+cd $!
+last=$num
+first=0
+for num in $(seq $first $last)
+do
+	location=$(xmllint --html --xpath 'string(//input/@value)' /tmp/$num.$$.html 2>/dev/null)
+	filename=$(xmllint --html --xpath 'string(//input[2]/@value)' /tmp/$num.$$.html 2>/dev/null)
+	DLURL=${TOKEN0}${location}${TOKEN1}${filename}${TOKEN2}${MD5[$num]}
+	echo "-A $UA" >> $outputfile
+	echo "-e ${REF[$num]}" >> $outputfile
+	echo "-k" >> $outputfile
+	echo "-g" >> $outputfile
+	echo "-o \"$filename\"" >> $outputfile
+	echo "--url \"$DLURL\"" >> $outputfile
+	echo >> $outputfile
+done
+
+
+cd /tmp/
+rm *.$$.html
+rm *.$$.txt
+rm $out
